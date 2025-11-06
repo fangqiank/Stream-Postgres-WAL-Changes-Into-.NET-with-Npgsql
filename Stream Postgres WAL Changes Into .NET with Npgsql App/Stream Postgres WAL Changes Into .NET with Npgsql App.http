@@ -1,0 +1,6 @@
+@Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App_HostAddress = http://localhost:5141
+
+GET {{Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
