@@ -10,10 +10,36 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
     <PackageReference Include="Npgsql" Version="9.0.2" />
+    <!-- Temporarily commented out due to network issues
+    <PackageReference Include="Npgsql.Replication" Version="9.0.2" />
+    -->
     <PackageReference Include="Docker.DotNet" Version="3.125.15" />
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     <PackageReference Include="Confluent.Kafka" Version="2.5.3" />
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
+    <PackageReference Include="MongoDB.Driver" Version="2.29.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.2" />
+    <!-- Temporarily removed due to version compatibility issues
+  <PackageReference Include="Microsoft.SqlServer.Management.Sdk.Sfc" Version="150.18097.0-xplat" />
+  -->
+    <!-- Test packages -->
+    <PackageReference Include="xunit" Version="2.4.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+  </ItemGroup>
+
+  <!-- Enable static content files -->
+  <PropertyGroup>
+    <EnableDefaultContentItems>true</EnableDefaultContentItems>
+  </PropertyGroup>
+
+  <!-- Explicitly include wwwroot content -->
+  <ItemGroup>
+    <Content Update="wwwroot/**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

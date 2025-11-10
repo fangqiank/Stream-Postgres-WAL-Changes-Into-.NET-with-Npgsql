@@ -37,6 +37,92 @@ services:
     networks:
       - debezium
 
+  # MongoDB for Analytics
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: debezium_analytics
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - debezium
+
+  # Reporting PostgreSQL Database
+  postgres-reporting:
+    image: postgres:16
+    container_name: postgres-reporting
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: reporting_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_reporting_data:/var/lib/postgresql/data
+    networks:
+      - debezium
+
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    user: root
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "StrongPassword123!"
+      MSSQL_PID: "Developer"
+      MSSQL_AGENT_ENABLED: "true"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql/data
+      - ./init-sqlserver.sql:/docker-entrypoint-initdb.d/init-sqlserver.sql:ro
+    networks:
+      - debezium
+    privileged: true
+
+  # SQL Server Analytics Database
+  sqlserver-analytics:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-analytics
+    user: root
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "StrongPassword123!"
+      MSSQL_PID: "Developer"
+      MSSQL_AGENT_ENABLED: "true"
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver_analytics_data:/var/opt/mssql/data
+    networks:
+      - debezium
+    privileged: true
+
+  # SQL Server Archive Database
+  sqlserver-archive:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-archive
+    user: root
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "StrongPassword123!"
+      MSSQL_PID: "Developer"
+      MSSQL_AGENT_ENABLED: "true"
+    ports:
+      - "1435:1433"
+    volumes:
+      - sqlserver_archive_data:/var/opt/mssql/data
+    networks:
+      - debezium
+    privileged: true
+
   # Zookeeper (required by Kafka)
   zookeeper:
     image: debezium/zookeeper:2.6
@@ -84,25 +170,15 @@ services:
     networks:
       - debezium
 
-  # RabbitMQ (for our application messaging)
-  rabbitmq:
-    image: rabbitmq:3.12-management
-    container_name: rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - debezium
-
+  
 volumes:
   postgres_primary_data:
   postgres_backup_data:
-  rabbitmq_data:
+  postgres_reporting_data:
+  mongodb_data:
+  sqlserver_data:
+  sqlserver_analytics_data:
+  sqlserver_archive_data:
 
 networks:
   debezium:

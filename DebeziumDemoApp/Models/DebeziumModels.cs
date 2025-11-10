@@ -6,6 +6,8 @@ public class DebeziumChangeEvent
 {
     [JsonPropertyName("payload")]
     public Payload Payload { get; set; } = new();
+
+    public Dictionary<string, object>? Metadata { get; set; }
 }
 
 public class Payload
