@@ -1,12 +1,69 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Models
 {
+    /// <summary>
+    /// 自定义DateTime转换器，支持多种格式
+    /// </summary>
+    public class FlexibleDateTimeConverter : JsonConverter<DateTime>
+    {
+        private readonly string[] _formats = {
+            "yyyy-MM-ddTHH:mm:ss.fffZ",
+            "yyyy-MM-ddTHH:mm:ssZ",
+            "yyyy-MM-dd HH:mm:ss.fffZ",
+            "yyyy-MM-dd HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.fff",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss.fff",
+            "yyyy-MM-dd HH:mm:ss",
+            "MM/dd/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm:ss"
+        };
+
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var value = reader.GetString();
+            if (string.IsNullOrEmpty(value))
+                return DateTime.MinValue;
+
+            // 尝试直接解析ISO格式
+            if (DateTime.TryParse(value, out var result))
+                return result;
+
+            // 尝试各种格式
+            foreach (var format in _formats)
+            {
+                if (DateTime.TryParseExact(value, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+                    return result;
+            }
+
+            throw new JsonException($"Unable to parse DateTime from '{value}'");
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
+        }
+    }
+
     /// <summary>
     /// 数据库变更事件
     /// </summary>
     public class ChangeEvent
     {
+        /// <summary>
+        /// JSON序列化选项，支持多种DateTime格式
+        /// </summary>
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = {
+                new System.Text.Json.Serialization.JsonStringEnumConverter(),
+                new FlexibleDateTimeConverter()
+            }
+        };
         /// <summary>
         /// 事件类型
         /// </summary>
@@ -72,7 +129,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Models
         /// </summary>
         public T? GetBeforeData<T>() where T : class
         {
-            return string.IsNullOrEmpty(BeforeData) ? null : JsonSerializer.Deserialize<T>(BeforeData);
+            return string.IsNullOrEmpty(BeforeData) ? null : JsonSerializer.Deserialize<T>(BeforeData, _jsonOptions);
         }
 
         /// <summary>
@@ -80,7 +137,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Models
         /// </summary>
         public T? GetAfterData<T>() where T : class
         {
-            return string.IsNullOrEmpty(AfterData) ? null : JsonSerializer.Deserialize<T>(AfterData);
+            return string.IsNullOrEmpty(AfterData) ? null : JsonSerializer.Deserialize<T>(AfterData, _jsonOptions);
         }
 
         /// <summary>

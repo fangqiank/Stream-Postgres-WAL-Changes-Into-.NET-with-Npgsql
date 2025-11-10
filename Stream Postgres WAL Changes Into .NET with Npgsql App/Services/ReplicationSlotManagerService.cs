@@ -7,7 +7,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
         ILogger<ReplicationSlotManagerService> logger
     )
     {
-        public async Task<bool> ResetReplicationSlotAsync(string slotName = "order_events_slot")
+        public async Task<bool> ResetReplicationSlotAsync(string slotName = "wal_sync_slot")
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
 
@@ -66,7 +66,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
         private async Task CreateReplicationSlotAsync(NpgsqlConnection connection, string slotName)
         {
             await using var createCmd = new NpgsqlCommand(
-                $"SELECT pg_create_logical_replication_slot('{slotName}', 'pgoutput')", connection);
+                $"SELECT pg_create_logical_replication_slot('{slotName}', 'test_decoding')", connection);
             var newLsn = await createCmd.ExecuteScalarAsync();
 
             logger.LogInformation("Created replication slot {SlotName} with LSN {LSN}", slotName, newLsn?.ToString() ?? "N/A");
@@ -112,7 +112,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
             }
         }
 
-        public async Task<bool> ForceCleanupReplicationSlotAsync(string slotName = "order_events_slot")
+        public async Task<bool> ForceCleanupReplicationSlotAsync(string slotName = "wal_sync_slot")
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
 
@@ -156,7 +156,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
             }
         }
 
-        public async Task<Dictionary<string, object>> GetReplicationSlotStatusAsync(string slotName = "order_events_slot")
+        public async Task<Dictionary<string, object>> GetReplicationSlotStatusAsync(string slotName = "wal_sync_slot")
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
             var result = new Dictionary<string, object>();
@@ -190,10 +190,12 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
                     result["SlotType"] = reader.GetString(2);
                     result["Database"] = reader.IsDBNull(3) ? "Unknown" : reader.GetString(3);
                     result["IsActive"] = reader.GetBoolean(4);
-                    result["ActivePid"] = reader.IsDBNull(5) ? null : (int?)reader.GetInt32(5);
-                    result["RestartLsn"] = reader.IsDBNull(6) ? null : reader.GetValue(6)?.ToString();
-                    result["ConfirmedFlushLsn"] = reader.IsDBNull(7) ? null : reader.GetValue(7)?.ToString();
-                    result["WalStatus"] = reader.IsDBNull(8) ? null : reader.GetString(8);
+                    #pragma warning disable CS8601
+                    result["ActivePid"] = reader.IsDBNull(5) ? null : (object)reader.GetInt32(5);
+#pragma warning restore CS8601
+                    result["RestartLsn"] = reader.IsDBNull(6) ? string.Empty : reader.GetValue(6)?.ToString() ?? string.Empty;
+                    result["ConfirmedFlushLsn"] = reader.IsDBNull(7) ? string.Empty : reader.GetValue(7)?.ToString() ?? string.Empty;
+                    result["WalStatus"] = reader.IsDBNull(8) ? string.Empty : reader.GetString(8);
                     result["Timestamp"] = DateTime.UtcNow;
                 }
                 else

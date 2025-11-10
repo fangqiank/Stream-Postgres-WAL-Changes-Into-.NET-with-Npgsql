@@ -46,9 +46,9 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Configuration
         public bool EnableWalDecoding { get; set; } = true;
 
         /// <summary>
-        /// WAL解码插件（默认pgoutput）
+        /// WAL解码插件（默认test_decoding）
         /// </summary>
-        public string WalDecoderPlugin { get; set; } = "pgoutput";
+        public string WalDecoderPlugin { get; set; } = "test_decoding";
 
         /// <summary>
         /// 批处理大小

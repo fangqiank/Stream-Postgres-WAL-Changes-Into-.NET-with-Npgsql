@@ -9,7 +9,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
     {
         public async Task<bool> DropDatabaseAsync(string databaseName)
         {
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            var connectionString = configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
             var baseConnectionString = connectionString.Replace(databaseName, "postgres");
 
             try
@@ -93,7 +93,7 @@ namespace Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services
                 cmd.Parameters.AddWithValue("dbName", databaseName);
 
                 var result = await cmd.ExecuteNonQueryAsync();
-                return result != null;
+                return result > 0;
             }
             catch (Exception ex)
             {

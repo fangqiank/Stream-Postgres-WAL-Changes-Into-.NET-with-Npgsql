@@ -5,7 +5,6 @@ using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Configuration;
 using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Data;
 using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Extensions;
 using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services;
-using System.Net.WebSockets;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +28,22 @@ builder.Services.AddDbContext<AppDbContext>(
     options =>
     {
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
+            npgsqlOptions =>
+            {
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: builder.Configuration.GetValue<int>("Database:MaxRetryCount", 5),
+                    maxRetryDelay: TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("Database:MaxRetryDelay", 30)),
+                    errorCodesToAdd: null);
+                npgsqlOptions.CommandTimeout(builder.Configuration.GetValue<int>("Database:CommandTimeout", 30));
+            });
+        options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTrackingWithIdentityResolution);
+    });
+
+// Local database configuration for UI and replicated data
+builder.Services.AddDbContext<LocalDbContext>(
+    options =>
+    {
+        options.UseNpgsql(builder.Configuration.GetConnectionString("LocalConnection"),
             npgsqlOptions =>
             {
                 npgsqlOptions.EnableRetryOnFailure(
@@ -99,24 +114,25 @@ catch
 builder.Services.Configure<LogicalReplicationOptions>(
     builder.Configuration.GetSection("Replication"));
 
-// Configure CDC options
-builder.Services.Configure<CdcOptions>(builder.Configuration.GetSection("Cdc"));
+// Configure PostgreSQL Logical Replication options
+builder.Services.Configure<LogicalReplicationServiceOptions>(builder.Configuration.GetSection("LogicalReplication"));
+
+// Configure Monitoring options
+builder.Services.Configure<MonitoringOptions>(builder.Configuration.GetSection("Monitoring"));
 
 // Register services
-builder.Services.AddSingleton<ICdcService, CdcService>();
-builder.Services.AddSingleton<CdcEventHandlerManager>();
-builder.Services.AddTransient<ICdcEventHandler, OrderChangeEventHandler>();
-builder.Services.AddTransient<ICdcEventHandler, OutboxEventHandler>();
-builder.Services.AddTransient<ICdcEventHandler, GenericChangeEventHandler>();
 builder.Services.AddSingleton<IReplicationHealthMonitor, ReplicationHealthMonitor>();
-builder.Services.AddSingleton<IReplicationEventProcessor, ReplicationEventProcessor>();
 builder.Services.AddSingleton<ReplicationSlotManagerService>();
 builder.Services.AddSingleton<RealTimeNotificationService>();
+builder.Services.AddUserSecretsExample(); // 添加配置示例服务
+// ===== PostgreSQL逻辑复制服务注册 =====
+// 注册PostgreSQL逻辑复制服务
+if (builder.Configuration.GetValue<bool>("LogicalReplication:Enabled", true))
+{
+    builder.Services.AddSingleton<PostgreSqlLogicalReplicationService>();
+    builder.Services.AddHostedService<PostgreSqlLogicalReplicationService>();
+}
 
-// Register hosted services
-builder.Services.AddHostedService<CdcInitializer>();
-builder.Services.AddHostedService<LogicalReplicationService>();
-builder.Services.AddHostedService<OutboxEventProcessor>();
 
 // Add memory cache
 builder.Services.AddMemoryCache(options =>
@@ -139,6 +155,35 @@ builder.Services.AddCors(opts =>
 
 var app = builder.Build();
 
+// Ensure databases are created on startup
+using (var scope = app.Services.CreateScope())
+{
+    var neonContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var localContext = scope.ServiceProvider.GetRequiredService<LocalDbContext>();
+
+    try
+    {
+        // Create Neon database schema
+        neonContext.Database.EnsureCreated();
+        Console.WriteLine("✅ Neon database schema verified");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️ Neon database schema check failed: {ex.Message}");
+    }
+
+    try
+    {
+        // Create local database schema
+        localContext.Database.EnsureCreated();
+        Console.WriteLine("✅ Local database schema created");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️ Local database schema check failed: {ex.Message}");
+    }
+}
+
 // Configure middleware pipeline
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -160,16 +205,26 @@ app.MapPublicEndpoints();
 // Health endpoints (no authentication required)
 app.MapHealthEndpoints();
 
+// Public diagnostic endpoints (no authentication required)
+app.MapPublicDiagnosticEndpoints();
+
 // Authentication endpoints (no authentication required)
 app.MapAuthenticationEndpoints(builder.Configuration);
 
 // WebSocket endpoints (mixed authentication requirements)
 app.MapWebSocketEndpoints();
 
-// Order endpoints (authentication required)
+// Local Order endpoints (authentication required) - Use local database for UI
+app.MapLocalOrderEndpoints();
+
+// Order endpoints (authentication required) - Use original database for CDC operations
 app.MapOrderEndpoints();
 
 // Replication endpoints (authentication required)
 app.MapReplicationEndpoints();
+
+// ===== PostgreSQL逻辑复制端点 =====
+// 映射逻辑复制API端点
+app.MapLogicalReplicationEndpoints();
 
 app.Run();

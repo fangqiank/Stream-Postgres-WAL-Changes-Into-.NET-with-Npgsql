@@ -172,5 +172,56 @@ public static class OrderEndpoints
         .WithSummary("Update Order Status")
         .WithDescription("Update order status and generate CDC event")
         .WithTags("Orders");
+
+        // Delete order
+        api.MapDelete("/{id}", async (Guid id, AppDbContext db, ILogger<Program> logger) =>
+        {
+            try
+            {
+                var order = await db.Orders.FindAsync(id);
+                if (order is null)
+                {
+                    return Results.NotFound();
+                }
+
+                // Store order details for CDC event before deletion
+                var orderDetails = new
+                {
+                    order.Id,
+                    order.CustomerName,
+                    order.Amount,
+                    order.Status,
+                    order.CreatedAt,
+                    order.UpdatedAt,
+                    DeletedAt = DateTime.UtcNow
+                };
+
+                // Create outbox event for deletion
+                var outboxEvent = new OutboxEvent
+                {
+                    AggregateType = "Order",
+                    AggregateId = order.Id.ToString(),
+                    EventType = "OrderDeleted",
+                    Payload = JsonSerializer.Serialize(orderDetails)
+                };
+
+                // Remove order and add outbox event in the same transaction
+                db.Orders.Remove(order);
+                db.OutboxEvents.Add(outboxEvent);
+
+                await db.SaveChangesAsync();
+
+                return Results.Ok(new { Message = "Order deleted successfully", DeletedOrder = orderDetails });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error deleting order");
+                return Results.Problem($"Error deleting order: {ex.Message}");
+            }
+        })
+        .WithName("DeleteOrder")
+        .WithSummary("Delete Order")
+        .WithDescription("Delete an order and generate CDC event")
+        .WithTags("Orders");
     }
 }

@@ -1,0 +1,44 @@
+# Local PostgreSQL for Neon replication and development
+version: '3.8'
+
+services:
+  # Local PostgreSQL for development and testing
+  postgres-local:
+    image: postgres:15
+    container_name: postgres-local
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localpostgres123
+      POSTGRES_DB: localdb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    command: >
+      -c wal_level=logical
+      -c max_replication_slots=10
+      -c max_wal_senders=10
+      -c max_worker_processes=8
+      -c track_commit_timestamp=on
+      -c logical_decoding_work_mem=64MB
+      -c shared_preload_libraries=pgoutput
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+      - ./scripts/setup-local-replication.sql:/docker-entrypoint-initdb.d/01-setup-replication.sql
+      - ./scripts/create-replication-user.sql:/docker-entrypoint-initdb.d/02-create-replication-user.sql
+      - ./scripts/init-local-database.sql:/docker-entrypoint-initdb.d/03-init-database.sql
+    networks:
+      - postgres-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d localdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_local_data:
+    driver: local
+
+networks:
+  postgres-network:
+    driver: bridge

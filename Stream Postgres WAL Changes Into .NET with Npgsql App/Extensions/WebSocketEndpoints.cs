@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Data;
 using Stream_Postgres_WAL_Changes_Into_.NET_with_Npgsql_App.Services;
@@ -9,8 +10,8 @@ public static class WebSocketEndpoints
 {
     public static void MapWebSocketEndpoints(this WebApplication app)
     {
-        // WebSocket endpoint for real-time notifications (no auth required for basic functionality)
-        app.MapGet("/api/realtime", async (HttpContext context, RealTimeNotificationService notificationService, ILogger<Program> logger) =>
+        // WebSocket endpoint for real-time notifications
+        app.MapGet("/api/realtime", async (HttpContext context, [FromServices] RealTimeNotificationService notificationService, [FromServices] ILogger<Program> logger) =>
         {
             if (context.WebSockets.IsWebSocketRequest)
             {

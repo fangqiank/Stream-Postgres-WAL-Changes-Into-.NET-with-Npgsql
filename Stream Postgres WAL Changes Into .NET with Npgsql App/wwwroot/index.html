@@ -1255,6 +1255,10 @@
                                 class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors">
                             更新
                         </button>
+                        <button onclick="deleteOrder('${order.id}', '${order.customerName}')"
+                                class="text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors">
+                            删除
+                        </button>
                     </div>
                 </div>
             `).join('');
@@ -1278,13 +1282,53 @@
 
             // 生成页码显示
             let pageNumbers = '';
-            for (let i = 1; i <= state.totalPages; i++) {
-                if (i === state.currentPage) {
-                    pageNumbers += `<span class="px-3 py-1 bg-blue-600 text-white rounded-md font-medium">${i}</span>`;
-                } else {
-                    pageNumbers += `<button onclick="changeToPage(${i})" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">${i}</button>`;
+            const maxVisiblePages = 5; // 最多显示5个页码
+
+            if (state.totalPages <= maxVisiblePages) {
+                // 如果总页数少，显示所有页码
+                for (let i = 1; i <= state.totalPages; i++) {
+                    if (i === state.currentPage) {
+                        pageNumbers += `<span class="px-3 py-1 bg-blue-600 text-white rounded-md font-medium">${i}</span>`;
+                    } else {
+                        pageNumbers += `<button onclick="changeToPage(${i})" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">${i}</button>`;
+                    }
+                }
+            } else {
+                // 如果页数很多，显示当前页附近的页码
+                let startPage = Math.max(1, state.currentPage - 2);
+                let endPage = Math.min(state.totalPages, startPage + maxVisiblePages - 1);
+
+                // 调整起始页以显示更多页码
+                if (endPage - startPage < maxVisiblePages - 1) {
+                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                }
+
+                // 显示第一页
+                if (startPage > 1) {
+                    pageNumbers += `<button onclick="changeToPage(1)" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">1</button>`;
+                    if (startPage > 2) {
+                        pageNumbers += `<span class="px-2 py-1 text-gray-500">...</span>`;
+                    }
+                }
+
+                // 显示中间页码
+                for (let i = startPage; i <= endPage; i++) {
+                    if (i === state.currentPage) {
+                        pageNumbers += `<span class="px-3 py-1 bg-blue-600 text-white rounded-md font-medium">${i}</span>`;
+                    } else {
+                        pageNumbers += `<button onclick="changeToPage(${i})" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">${i}</button>`;
+                    }
+                }
+
+                // 显示最后一页
+                if (endPage < state.totalPages) {
+                    if (endPage < state.totalPages - 1) {
+                        pageNumbers += `<span class="px-2 py-1 text-gray-500">...</span>`;
+                    }
+                    pageNumbers += `<button onclick="changeToPage(${state.totalPages})" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">${state.totalPages}</button>`;
                 }
             }
+
             document.getElementById('pageNumbers').innerHTML = pageNumbers;
         }
 
@@ -1363,6 +1407,31 @@
             } catch (error) {
                 console.error('Error in updateOrderStatus:', error);
                 showError('更新状态失败: ' + error.message);
+            }
+        }
+
+        // 删除订单
+        async function deleteOrder(orderId, customerName) {
+            if (!confirm(`确定要删除订单 "${customerName}" 吗？此操作不可恢复。`)) {
+                return;
+            }
+
+            showLoading();
+            try {
+                await safeFetch(`${API_BASE_URL}/orders/${orderId}`, {
+                    method: 'DELETE'
+                });
+
+                await loadOrders();
+                await updateCharts();
+
+                showNotification('订单删除成功！', 'success');
+
+            } catch (error) {
+                console.error('Error in deleteOrder:', error);
+                showError('删除订单失败: ' + error.message);
+            } finally {
+                hideLoading();
             }
         }
 
@@ -1529,10 +1598,10 @@ ${JSON.stringify(diagData, null, 2)}
         let carouselInterval = null;
         let lastDisplayedEventIds = new Set();
 
-        // Initialize carousel with events
+        // Initialize carousel with events - Use /neon/events instead of /api/events
         async function initializeEventCarousel() {
             try {
-                const response = await fetch('/api/events');
+                const response = await fetch('/neon/events');
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -1557,6 +1626,30 @@ ${JSON.stringify(diagData, null, 2)}
             } catch (error) {
                 console.error('❌ Error initializing carousel:', error);
             }
+        }
+
+        // Add new event to carousel (called by WebSocket handlers)
+        function addEventToCarousel(eventData) {
+            // Add to front of carousel array (newest first)
+            eventCarousel.unshift(eventData);
+
+            // Keep only 10 most recent events in carousel
+            if (eventCarousel.length > 10) {
+                eventCarousel = eventCarousel.slice(0, 10);
+            }
+
+            // Update event count
+            state.eventCount++;
+            document.getElementById('eventCount').textContent = `${state.eventCount} 个事件`;
+
+            // Start carousel if not running
+            if (!carouselInterval) {
+                startEventCarousel();
+            }
+
+            // Immediately show the new event
+            currentEventIndex = 0;
+            displayCarouselEvent();
         }
 
         // Start carousel animation

@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debezium Demo - Real-time Database Changes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background-color: #44ff44;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .table-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .data-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 2rem;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .changes-log {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .change-item {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid #667eea;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .change-item.insert {
+            border-left-color: #28a745;
+        }
+
+        .change-item.update {
+            border-left-color: #ffc107;
+        }
+
+        .change-item.delete {
+            border-left-color: #dc3545;
+        }
+
+        .change-meta {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .change-data {
+            font-family: 'Courier New', monospace;
+            background: #f1f1f1;
+            padding: 0.5rem;
+            border-radius: 3px;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .data-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Order Status Styling */
+        .status-pending {
+            background-color: #ffc107;
+            color: #212529;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-processing {
+            background-color: #17a2b8;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-shipped {
+            background-color: #007bff;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-delivered {
+            background-color: #28a745;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* Message Styling */
+        .message {
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            margin: 0.5rem 0;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Backup Database Styling */
+        .backup-section {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .backup-section h3 {
+            color: #28a745;
+        }
+
+        /* CDC Monitoring Panel Styling */
+        .cdc-monitoring {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .cdc-monitoring h2 {
+            color: #495057;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cdc-monitoring h2::before {
+            content: "📊";
+            font-size: 1.2em;
+        }
+
+        .monitoring-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .monitoring-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+
+        .monitoring-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .monitoring-card.debezium {
+            border-left-color: #6f42c1;
+        }
+
+        .monitoring-card.kafka {
+            border-left-color: #f59e0b;
+        }
+
+        .monitoring-card.metrics {
+            border-left-color: #10b981;
+        }
+
+        .monitoring-card h3 {
+            color: #343a40;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .status-badge.connected {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-badge.disconnected {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .status-badge.error {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fed7aa;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #212529;
+        }
+
+        .topics-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.5rem 0;
+        }
+
+        .topic-item {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.875rem;
+            margin: 0.25rem 0;
+            display: inline-block;
+        }
+
+        .operation-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .operation-stat {
+            background: #f1f3f4;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .operation-stat .count {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .operation-stat .label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .operation-stat.insert {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .operation-stat.update {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .operation-stat.delete {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .operation-stat.read {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .last-update {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-top: 1rem;
+            font-style: italic;
+        }
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .backup-table {
+            width: 100%;
+            font-size: 0.9rem;
+            background: white;
+        }
+
+        .backup-table th {
+            background-color: #e8f5e8;
+            color: #155724;
+            font-size: 0.85rem;
+        }
+
+        .backup-table td {
+            padding: 0.5rem;
+        }
+
+        .change-item.sync-completed {
+            border-left-color: #28a745;
+        }
+
+        .change-item.sync-error {
+            border-left-color: #dc3545;
+        }
+
+        .change-item.backup {
+            border-left-color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Debezium Demo - Real-time Database Changes</h1>
+            <div class="status">
+                <div class="status-indicator" id="connectionStatus"></div>
+                <span id="connectionText">Disconnected</span>
+            </div>
+            <p>Experience real-time PostgreSQL WAL streaming with Neon, Debezium, and .NET 9</p>
+        </header>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalChanges">0</div>
+                <div class="stat-label">Total Changes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="productCount">0</div>
+                <div class="stat-label">Products</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="orderCount">0</div>
+                <div class="stat-label">Orders</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="categoryCount">0</div>
+                <div class="stat-label">Categories</div>
+            </div>
+        </div>
+
+        <!-- CDC Monitoring Panel -->
+        <div class="cdc-monitoring">
+            <h2>CDC Pipeline Monitoring</h2>
+            <div class="monitoring-grid">
+                <!-- Debezium Connector Status -->
+                <div class="monitoring-card debezium">
+                    <h3>🔌 Debezium Connector</h3>
+                    <div id="debeziumStatus">
+                        <div class="status-badge disconnected">Checking...</div>
+                        <div class="metric-item">
+                            <span class="metric-label">Status:</span>
+                            <span class="metric-value" id="debeziumStatusText">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Last Update:</span>
+                            <span class="metric-value" id="debeziumLastUpdate">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kafka Topics Status -->
+                <div class="monitoring-card kafka">
+                    <h3>📡 Kafka Topics</h3>
+                    <div id="kafkaStatus">
+                        <div class="status-badge disconnected">Checking...</div>
+                        <div class="metric-item">
+                            <span class="metric-label">Status:</span>
+                            <span class="metric-value" id="kafkaStatusText">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Active Topics:</span>
+                            <span class="metric-value" id="kafkaTopicCount">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Topics:</span>
+                            <div class="topics-list" id="kafkaTopicsList">
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CDC Metrics -->
+                <div class="monitoring-card metrics">
+                    <h3>📈 CDC Metrics</h3>
+                    <div id="cdcMetrics">
+                        <div class="metric-item">
+                            <span class="metric-label">Total Changes:</span>
+                            <span class="metric-value" id="cdcTotalChanges">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Last Change:</span>
+                            <span class="metric-value" id="cdcLastChange">-</span>
+                        </div>
+                        <div class="operation-stats" id="operationStats">
+                            <div class="operation-stat insert">
+                                <div class="count" id="insertCount">0</div>
+                                <div class="label">INSERT</div>
+                            </div>
+                            <div class="operation-stat update">
+                                <div class="count" id="updateCount">0</div>
+                                <div class="label">UPDATE</div>
+                            </div>
+                            <div class="operation-stat delete">
+                                <div class="count" id="deleteCount">0</div>
+                                <div class="label">DELETE</div>
+                            </div>
+                            <div class="operation-stat read">
+                                <div class="count" id="readCount">0</div>
+                                <div class="label">READ</div>
+                            </div>
+                        </div>
+                        <div class="last-update" id="metricsLastUpdate">
+                            Last updated: -
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Management Section -->
+        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h2>🗄️ Database Management</h2>
+            <div id="dbStatus" class="form-group" style="color: white;">
+                <label>Status:</label>
+                <span id="dbStatusText">Not checked</span>
+            </div>
+            <div style="margin-top: 1rem;">
+                <button class="btn" onclick="checkHealth()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">Check Health</button>
+                <button class="btn" onclick="initializeDatabase()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">Initialize Database</button>
+                <button class="btn" onclick="clearChanges()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">Clear Changes Log</button>
+            </div>
+            <div id="dbMessage" style="margin-top: 1rem; padding: 0.5rem; border-radius: 5px; background: rgba(255,255,255,0.1); display: none;"></div>
+        </div>
+
+        <!-- Products Section -->
+        <div class="table-section">
+            <div class="section-header">
+                <h2>🛍️ Products</h2>
+                <button class="btn btn-add" onclick="showAddProductModal()">Add New Product</button>
+            </div>
+            <div id="productsContainer">
+                <table class="data-table" id="productsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Description</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTableBody">
+                        <tr>
+                            <td colspan="7" class="empty-state">No products found. Click "Add New Product" to create one.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Orders Section -->
+        <div class="table-section">
+            <div class="section-header">
+                <h2>📦 Orders</h2>
+                <button class="btn btn-add" onclick="showAddOrderModal()">Add New Order</button>
+            </div>
+            <div id="ordersContainer">
+                <table class="data-table" id="ordersTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Order Number</th>
+                            <th>Customer ID</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Order Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody">
+                        <tr>
+                            <td colspan="7" class="empty-state">No orders found. Click "Add New Order" to create one.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Categories Section -->
+        <div class="table-section">
+            <div class="section-header">
+                <h2>🏷️ Categories</h2>
+                <button class="btn btn-add" onclick="showAddCategoryModal()">Add New Category</button>
+            </div>
+            <div id="categoriesContainer">
+                <table class="data-table" id="categoriesTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="categoriesTableBody">
+                        <tr>
+                            <td colspan="5" class="empty-state">No categories found. Click "Add New Category" to create one.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Backup Database Section -->
+        <div class="card">
+            <h2>💾 备份数据库 (Backup Database)</h2>
+            <div style="display: grid; gap: 1rem;">
+                <!-- Backup Products -->
+                <div class="backup-section">
+                    <h3>🛍️ Backup Products</h3>
+                    <table class="data-table backup-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Last Synced</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupProductsTableBody">
+                            <tr>
+                                <td colspan="5" class="empty-state">No backup products found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Backup Orders -->
+                <div class="backup-section">
+                    <h3>📦 Backup Orders</h3>
+                    <table class="data-table backup-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Order Number</th>
+                                <th>Customer ID</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Last Synced</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupOrdersTableBody">
+                            <tr>
+                                <td colspan="6" class="empty-state">No backup orders found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Backup Categories -->
+                <div class="backup-section">
+                    <h3>🏷️ Backup Categories</h3>
+                    <table class="data-table backup-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Last Synced</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backupCategoriesTableBody">
+                            <tr>
+                                <td colspan="4" class="empty-state">No backup categories found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔄 Database Change Log</h2>
+            <button class="btn" onclick="clearChanges()">Clear Log</button>
+            <div id="changesLog" class="changes-log" style="margin-top: 1rem;">
+                <div class="empty-state">Waiting for database changes...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="productModalTitle">Add New Product</h3>
+                <span class="close" onclick="closeProductModal()">&times;</span>
+            </div>
+            <form id="productForm">
+                <input type="hidden" id="productId" />
+                <div class="form-group">
+                    <label for="productName">Name:</label>
+                    <input type="text" id="productName" required>
+                </div>
+                <div class="form-group">
+                    <label for="productPrice">Price:</label>
+                    <input type="number" id="productPrice" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="productStock">Stock:</label>
+                    <input type="number" id="productStock" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="productDescription">Description:</label>
+                    <textarea id="productDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn">Save Product</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="orderModalTitle">Add New Order</h3>
+                <span class="close" onclick="closeOrderModal()">&times;</span>
+            </div>
+            <form id="orderForm">
+                <input type="hidden" id="orderId" />
+                <div class="form-group">
+                    <label for="orderNumber">Order Number:</label>
+                    <input type="text" id="orderNumber" required>
+                </div>
+                <div class="form-group">
+                    <label for="orderCustomerId">Customer ID:</label>
+                    <input type="number" id="orderCustomerId" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="orderTotal">Total Amount:</label>
+                    <input type="number" id="orderTotal" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="orderStatus">Status:</label>
+                    <select id="orderStatus">
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="delivered">Delivered</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn">Save Order</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeOrderModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div id="categoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="categoryModalTitle">Add New Category</h3>
+                <span class="close" onclick="closeCategoryModal()">&times;</span>
+            </div>
+            <form id="categoryForm">
+                <input type="hidden" id="categoryId" />
+                <div class="form-group">
+                    <label for="categoryName">Name:</label>
+                    <input type="text" id="categoryName" required>
+                </div>
+                <div class="form-group">
+                    <label for="categoryDescription">Description:</label>
+                    <textarea id="categoryDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn">Save Category</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let eventSource;
+        let changeCount = 0;
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+
+            if (connected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Connected to real-time updates';
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function addChangeToLog(change) {
+            changeCount++;
+            document.getElementById('totalChanges').textContent = changeCount;
+
+            const log = document.getElementById('changesLog');
+
+            // Remove empty state if present
+            const emptyState = log.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const changeItem = document.createElement('div');
+            changeItem.className = `change-item ${change.operation.toLowerCase()}`;
+
+            const timestamp = new Date(change.timestamp).toLocaleString();
+
+            changeItem.innerHTML = `
+                <div class="change-meta">
+                    <strong>${change.operation.toUpperCase()}</strong> on ${change.table}.${change.schema}
+                    at ${timestamp} (LSN: ${change.lsn})
+                </div>
+                ${change.after ? `<div class="change-data">${JSON.stringify(change.after, null, 2)}</div>` : ''}
+                ${change.before ? `<div style="margin-top: 0.5rem;"><strong>Before:</strong><div class="change-data">${JSON.stringify(change.before, null, 2)}</div></div>` : ''}
+            `;
+
+            log.insertBefore(changeItem, log.firstChild);
+
+            // Keep only last 50 changes
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function clearChanges() {
+            const log = document.getElementById('changesLog');
+            log.innerHTML = '<div class="empty-state">Waiting for database changes...</div>';
+            changeCount = 0;
+            document.getElementById('totalChanges').textContent = '0';
+        }
+
+  
+        async function checkHealth() {
+            try {
+                showDbMessage('Checking database health...', 'info');
+                const response = await fetch('/health');
+
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('dbStatusText').textContent = '✅ ' + result.status;
+                    showDbMessage('Database is healthy!', 'success');
+                    // Load initial data after health check
+                    loadProducts();
+                    loadOrders();
+                    loadCategories();
+                } else {
+                    document.getElementById('dbStatusText').textContent = '❌ Unhealthy';
+                    showDbMessage('Database is unhealthy. Please check connection.', 'error');
+                }
+            } catch (error) {
+                console.error('Error checking health:', error);
+                document.getElementById('dbStatusText').textContent = '❌ Error';
+                showDbMessage('Error checking database health: ' + error.message, 'error');
+            }
+        }
+
+        async function initializeDatabase() {
+            try {
+                showDbMessage('Initializing database...', 'info');
+                const response = await fetch('/api/database/initialize', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showDbMessage('Database initialized successfully! ' + result.message, 'success');
+                    document.getElementById('dbStatusText').textContent = '✅ Initialized';
+                    // Load data after initialization
+                    setTimeout(() => {
+                        loadProducts();
+                        loadOrders();
+                        loadCategories();
+                    }, 1000);
+                } else {
+                    const errorText = await response.text();
+                    showDbMessage('Database initialization failed: ' + errorText, 'error');
+                }
+            } catch (error) {
+                console.error('Error initializing database:', error);
+                showDbMessage('Error initializing database: ' + error.message, 'error');
+            }
+        }
+
+        function showDbMessage(message, type) {
+            const messageDiv = document.getElementById('dbMessage');
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+            messageDiv.style.background = type === 'error' ? 'rgba(220, 53, 69, 0.3)' :
+                                           type === 'success' ? 'rgba(40, 167, 69, 0.3)' :
+                                           'rgba(255, 193, 7, 0.3)';
+            messageDiv.style.color = type === 'error' ? '#ffcccc' :
+                                      type === 'success' ? '#ccffcc' :
+                                      '#fff3cd';
+
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Auto-hide info messages after 3 seconds
+            if (type === 'info') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // ========== PRODUCTS CRUD FUNCTIONS ==========
+
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                const products = await response.json();
+
+                const tbody = document.getElementById('productsTableBody');
+
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No products found. Click "Add New Product" to create one.</td></tr>';
+                } else {
+                    tbody.innerHTML = products.map(product => `
+                        <tr>
+                            <td>${product.id}</td>
+                            <td><strong>${product.name}</strong></td>
+                            <td>$${product.price.toFixed(2)}</td>
+                            <td>${product.stock}</td>
+                            <td>${product.description || '-'}</td>
+                            <td>${new Date(product.createdAt).toLocaleDateString()}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-small btn-edit" onclick="editProduct(${product.id})">Edit</button>
+                                    <button class="btn btn-small btn-delete" onclick="deleteProduct(${product.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                document.getElementById('productCount').textContent = products.length;
+            } catch (error) {
+                console.error('Error loading products:', error);
+                showMessage('Error loading products', 'error');
+            }
+        }
+
+        function showAddProductModal() {
+            document.getElementById('productModalTitle').textContent = 'Add New Product';
+            document.getElementById('productId').value = '';
+            document.getElementById('productForm').reset();
+            document.getElementById('productModal').style.display = 'block';
+        }
+
+        function closeProductModal() {
+            document.getElementById('productModal').style.display = 'none';
+        }
+
+        async function editProduct(id) {
+            try {
+                const response = await fetch(`/api/products/${id}`);
+                const product = await response.json();
+
+                document.getElementById('productModalTitle').textContent = 'Edit Product';
+                document.getElementById('productId').value = product.id;
+                document.getElementById('productName').value = product.name;
+                document.getElementById('productPrice').value = product.price;
+                document.getElementById('productStock').value = product.stock;
+                document.getElementById('productDescription').value = product.description || '';
+                document.getElementById('productModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading product:', error);
+                showMessage('Error loading product', 'error');
+            }
+        }
+
+        async function saveProduct(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('productId').value;
+            const product = {
+                name: document.getElementById('productName').value,
+                price: parseFloat(document.getElementById('productPrice').value),
+                stock: parseInt(document.getElementById('productStock').value),
+                description: document.getElementById('productDescription').value || null
+            };
+
+            try {
+                const url = id ? `/api/products/${id}` : '/api/products';
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(product)
+                });
+
+                if (response.ok) {
+                    closeProductModal();
+                    loadProducts();
+                    showMessage(id ? 'Product updated successfully' : 'Product created successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to save product: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving product:', error);
+                showMessage('Error saving product', 'error');
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (!confirm('Are you sure you want to delete this product?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/products/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadProducts();
+                    showMessage('Product deleted successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to delete product: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting product:', error);
+                showMessage('Error deleting product', 'error');
+            }
+        }
+
+        // ========== ORDERS CRUD FUNCTIONS ==========
+
+        async function loadOrders() {
+            try {
+                const response = await fetch('/api/orders');
+                const orders = await response.json();
+
+                const tbody = document.getElementById('ordersTableBody');
+
+                if (orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No orders found. Click "Add New Order" to create one.</td></tr>';
+                } else {
+                    tbody.innerHTML = orders.map(order => `
+                        <tr>
+                            <td>${order.id}</td>
+                            <td><strong>${order.orderNumber}</strong></td>
+                            <td>${order.customerId || '-'}</td>
+                            <td>$${order.totalAmount.toFixed(2)}</td>
+                            <td><span class="status-${order.status}">${order.status}</span></td>
+                            <td>${new Date(order.orderDate).toLocaleDateString()}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit</button>
+                                    <button class="btn btn-small btn-delete" onclick="deleteOrder(${order.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                document.getElementById('orderCount').textContent = orders.length;
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                showMessage('Error loading orders', 'error');
+            }
+        }
+
+        function showAddOrderModal() {
+            document.getElementById('orderModalTitle').textContent = 'Add New Order';
+            document.getElementById('orderId').value = '';
+            document.getElementById('orderForm').reset();
+            document.getElementById('orderModal').style.display = 'block';
+        }
+
+        function closeOrderModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        async function editOrder(id) {
+            try {
+                const response = await fetch(`/api/orders/${id}`);
+                const order = await response.json();
+
+                document.getElementById('orderModalTitle').textContent = 'Edit Order';
+                document.getElementById('orderId').value = order.id;
+                document.getElementById('orderNumber').value = order.orderNumber;
+                document.getElementById('orderCustomerId').value = order.customerId || '';
+                document.getElementById('orderTotal').value = order.totalAmount;
+                document.getElementById('orderStatus').value = order.status;
+                document.getElementById('orderModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading order:', error);
+                showMessage('Error loading order', 'error');
+            }
+        }
+
+        async function saveOrder(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('orderId').value;
+            const order = {
+                orderNumber: document.getElementById('orderNumber').value,
+                customerId: document.getElementById('orderCustomerId').value ? parseInt(document.getElementById('orderCustomerId').value) : null,
+                totalAmount: parseFloat(document.getElementById('orderTotal').value),
+                status: document.getElementById('orderStatus').value
+            };
+
+            try {
+                const url = id ? `/api/orders/${id}` : '/api/orders';
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(order)
+                });
+
+                if (response.ok) {
+                    closeOrderModal();
+                    loadOrders();
+                    showMessage(id ? 'Order updated successfully' : 'Order created successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to save order: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving order:', error);
+                showMessage('Error saving order', 'error');
+            }
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm('Are you sure you want to delete this order?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/orders/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadOrders();
+                    showMessage('Order deleted successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to delete order: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting order:', error);
+                showMessage('Error deleting order', 'error');
+            }
+        }
+
+        // ========== CATEGORIES CRUD FUNCTIONS ==========
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                const categories = await response.json();
+
+                const tbody = document.getElementById('categoriesTableBody');
+
+                if (categories.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No categories found. Click "Add New Category" to create one.</td></tr>';
+                } else {
+                    tbody.innerHTML = categories.map(category => `
+                        <tr>
+                            <td>${category.id}</td>
+                            <td><strong>${category.name}</strong></td>
+                            <td>${category.description || '-'}</td>
+                            <td>${new Date(category.createdAt).toLocaleDateString()}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                                    <button class="btn btn-small btn-delete" onclick="deleteCategory(${category.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                document.getElementById('categoryCount').textContent = categories.length;
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                showMessage('Error loading categories', 'error');
+            }
+        }
+
+        function showAddCategoryModal() {
+            document.getElementById('categoryModalTitle').textContent = 'Add New Category';
+            document.getElementById('categoryId').value = '';
+            document.getElementById('categoryForm').reset();
+            document.getElementById('categoryModal').style.display = 'block';
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+        }
+
+        async function editCategory(id) {
+            try {
+                const response = await fetch(`/api/categories/${id}`);
+                const category = await response.json();
+
+                document.getElementById('categoryModalTitle').textContent = 'Edit Category';
+                document.getElementById('categoryId').value = category.id;
+                document.getElementById('categoryName').value = category.name;
+                document.getElementById('categoryDescription').value = category.description || '';
+                document.getElementById('categoryModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading category:', error);
+                showMessage('Error loading category', 'error');
+            }
+        }
+
+        async function saveCategory(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('categoryId').value;
+            const category = {
+                name: document.getElementById('categoryName').value,
+                description: document.getElementById('categoryDescription').value || null
+            };
+
+            try {
+                const url = id ? `/api/categories/${id}` : '/api/categories';
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(category)
+                });
+
+                if (response.ok) {
+                    closeCategoryModal();
+                    loadCategories();
+                    showMessage(id ? 'Category updated successfully' : 'Category created successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to save category: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving category:', error);
+                showMessage('Error saving category', 'error');
+            }
+        }
+
+        async function deleteCategory(id) {
+            if (!confirm('Are you sure you want to delete this category?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/categories/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadCategories();
+                    showMessage('Category deleted successfully', 'success');
+                } else {
+                    const error = await response.text();
+                    showMessage(`Failed to delete category: ${error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting category:', error);
+                showMessage('Error deleting category', 'error');
+            }
+        }
+
+        // ========== UTILITY FUNCTIONS ==========
+
+        function showMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('dbMessage');
+            messageDiv.textContent = message;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+
+            if (type === 'info') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // ========== CDC MONITORING FUNCTIONS ==========
+
+        function updateCDCMonitoring() {
+            updateDebeziumStatus();
+            updateKafkaTopics();
+            updateCDCMetrics();
+        }
+
+        async function updateDebeziumStatus() {
+            try {
+                // Add timeout to fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+                const response = await fetch('/api/debezium/connector', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                const statusElement = document.getElementById('debeziumStatus');
+                if (data.success) {
+                    const connector = data.data;
+                    const statusClass = connector.state === 'RUNNING' ? 'connected' : 'disconnected';
+
+                    statusElement.innerHTML = `
+                        <div class="status-badge ${statusClass}">${connector.state}</div>
+                        <div class="connector-name">${connector.name}</div>
+                        <div class="connector-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Type:</span>
+                                <span class="detail-value">${connector.type}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Database:</span>
+                                <span class="detail-value">${connector.config['database.hostname'] || 'N/A'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Task:</span>
+                                <span class="detail-value">${connector.tasks?.[0]?.state || 'N/A'}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    statusElement.innerHTML = `
+                        <div class="status-badge disconnected">Error</div>
+                        <div class="connector-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Error:</span>
+                                <span class="detail-value">${data.error || 'Unknown error'}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error fetching Debezium status:', error);
+                const statusElement = document.getElementById('debeziumStatus');
+                statusElement.innerHTML = `
+                    <div class="status-badge disconnected">Unavailable</div>
+                    <div class="connector-details">
+                        <div class="detail-item">
+                            <span class="detail-value">Connection failed</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function updateKafkaTopics() {
+            try {
+                // Add timeout to fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+                const response = await fetch('/api/kafka/topics', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                const statusElement = document.getElementById('kafkaStatus');
+                const statusTextElement = document.getElementById('kafkaStatusText');
+                const topicCountElement = document.getElementById('kafkaTopicCount');
+                if (data.success) {
+                    const topics = data.data;
+
+                    // Update status
+                    statusTextElement.textContent = 'Connected';
+                    statusElement.querySelector('.status-badge').className = 'status-badge connected';
+                    statusElement.querySelector('.status-badge').textContent = 'Connected';
+
+                    // Update topic count
+                    topicCountElement.textContent = topics.length;
+
+                    // Add topics details if needed
+                    let topicsHtml = '<div class="topics-details">';
+                    topics.forEach(topic => {
+                        topicsHtml += `
+                            <div class="topic-info">
+                                <strong>${topic.name}:</strong> ${topic.partitions} partition${topic.partitions > 1 ? 's' : ''}, ${formatNumber(topic.messageCount)} messages
+                            </div>
+                        `;
+                    });
+                    topicsHtml += '</div>';
+
+                    // Add topics details after the metric items
+                    const existingDetails = statusElement.querySelector('.topics-details');
+                    if (existingDetails) {
+                        existingDetails.remove();
+                    }
+                    statusElement.insertAdjacentHTML('beforeend', topicsHtml);
+                } else {
+                    statusTextElement.textContent = 'Error';
+                    statusElement.querySelector('.status-badge').className = 'status-badge disconnected';
+                    statusElement.querySelector('.status-badge').textContent = 'Error';
+                    topicCountElement.textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error fetching Kafka topics:', error);
+                statusTextElement.textContent = 'Unavailable';
+                statusElement.querySelector('.status-badge').className = 'status-badge disconnected';
+                statusElement.querySelector('.status-badge').textContent = 'Unavailable';
+                topicCountElement.textContent = '0';
+            }
+        }
+
+        async function updateCDCMetrics() {
+            try {
+                // Add timeout to fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+                const response = await fetch('/api/cdc/stats', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                const metricsElement = document.getElementById('cdcMetrics');
+                if (data.success) {
+                    const metrics = data.data;
+                    metricsElement.innerHTML = `
+                        <div class="metric">
+                            <div class="metric-value">${formatNumber(metrics.totalChanges)}</div>
+                            <div class="metric-label">Total Changes</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${formatTime(metrics.lastChangeTime)}</div>
+                            <div class="metric-label">Last Change</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${Object.keys(metrics.tableCounts).length}</div>
+                            <div class="metric-label">Active Tables</div>
+                        </div>
+                    `;
+
+                    // Add operation details
+                    let operationsHtml = '<div class="operation-stats">';
+                    Object.entries(metrics.operationCounts).forEach(([op, count]) => {
+                        const percentage = metrics.totalChanges > 0 ? (count / metrics.totalChanges * 100).toFixed(1) : 0;
+                        operationsHtml += `
+                            <div class="operation-item">
+                                <span class="operation-name">${op}</span>
+                                <div class="operation-bar">
+                                    <div class="operation-fill" style="width: ${percentage}%"></div>
+                                </div>
+                                <span class="operation-count">${count}</span>
+                            </div>
+                        `;
+                    });
+                    operationsHtml += '</div>';
+
+                    // Add table details
+                    let tablesHtml = '<div class="table-stats">';
+                    Object.entries(metrics.tableCounts).forEach(([table, count]) => {
+                        tablesHtml += `
+                            <div class="table-item">
+                                <span class="table-name">${table}</span>
+                                <span class="table-count">${count}</span>
+                            </div>
+                        `;
+                    });
+                    tablesHtml += '</div>';
+
+                    metricsElement.innerHTML += operationsHtml + tablesHtml;
+                } else {
+                    metricsElement.innerHTML = `
+                        <div class="metric">
+                            <div class="metric-value">Error</div>
+                            <div class="metric-label">Metrics unavailable</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error fetching CDC metrics:', error);
+                const metricsElement = document.getElementById('cdcMetrics');
+                metricsElement.innerHTML = `
+                    <div class="metric">
+                        <div class="metric-value">Unavailable</div>
+                        <div class="metric-label">Connection failed</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Utility functions for formatting
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        function formatTime(timeString) {
+            if (!timeString) return 'Never';
+            const date = new Date(timeString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+            return `${Math.floor(diffMins / 1440)}d ago`;
+        }
+
+        // Server-Sent Events (SSE) setup
+        function startEventStream() {
+            eventSource = new EventSource('/api/changes/stream');
+
+            eventSource.onopen = function() {
+                updateConnectionStatus(true);
+                console.log("SSE Connected");
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'connected') {
+                        console.log('SSE connection established with client ID:', data.clientId);
+                        updateConnectionStatus(true);
+                    } else if (data.type === 'heartbeat') {
+                        // Ignore heartbeat messages or use them to verify connection is alive
+                        console.log('Heartbeat received at:', data.timestamp);
+                    } else if (data.operation) {
+                        // This is a database change event
+                        console.log("Database changed:", data);
+                        addChangeToLog(data);
+
+                        // Refresh data based on what changed
+                        if (data.table === 'products') {
+                            loadProducts();
+                        } else if (data.table === 'orders') {
+                            loadOrders();
+                        } else if (data.table === 'categories') {
+                            loadCategories();
+                        }
+
+                        // Update CDC monitoring when data changes
+                        updateCDCMonitoring();
+                    }
+                } catch (error) {
+                    console.error('Error parsing SSE message:', error);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('SSE Error:', event);
+                updateConnectionStatus(false);
+
+                // Attempt to reconnect after 5 seconds
+                setTimeout(() => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        console.log('Attempting to reconnect SSE...');
+                        startEventStream();
+                    }
+                }, 5000);
+            };
+        }
+
+        // Initialize the application
+        function initializeApp() {
+            // Start SSE connection
+            startEventStream();
+
+            // Check database health first
+            checkHealth();
+
+            // Add form event listeners
+            document.getElementById('productForm').addEventListener('submit', saveProduct);
+            document.getElementById('orderForm').addEventListener('submit', saveOrder);
+            document.getElementById('categoryForm').addEventListener('submit', saveCategory);
+
+            // Load initial data
+            loadProducts();
+            loadOrders();
+            loadCategories();
+            loadBackupData();
+
+            // Initialize CDC monitoring
+            updateCDCMonitoring();
+
+            // Set up auto-refresh for CDC monitoring every 10 seconds
+            setInterval(updateCDCMonitoring, 10000);
+        }
+
+        // ========== BACKUP DATABASE FUNCTIONS ==========
+
+        async function loadBackupData() {
+            loadBackupProducts();
+            loadBackupOrders();
+            loadBackupCategories();
+        }
+
+        async function loadBackupProducts() {
+            try {
+                const response = await fetch('/api/backup/products');
+                const products = await response.json();
+
+                const tbody = document.getElementById('backupProductsTableBody');
+
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No backup products found.</td></tr>';
+                } else {
+                    tbody.innerHTML = products.map(product => `
+                        <tr>
+                            <td>${product.id}</td>
+                            <td><strong>${product.name}</strong></td>
+                            <td>$${product.price.toFixed(2)}</td>
+                            <td>${product.stock}</td>
+                            <td>${new Date(product.updatedAt).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading backup products:', error);
+                document.getElementById('backupProductsTableBody').innerHTML =
+                    '<tr><td colspan="5" class="empty-state">Error loading backup products</td></tr>';
+            }
+        }
+
+        async function loadBackupOrders() {
+            try {
+                const response = await fetch('/api/backup/orders');
+                const orders = await response.json();
+
+                const tbody = document.getElementById('backupOrdersTableBody');
+
+                if (orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No backup orders found.</td></tr>';
+                } else {
+                    tbody.innerHTML = orders.map(order => `
+                        <tr>
+                            <td>${order.id}</td>
+                            <td><strong>${order.orderNumber}</strong></td>
+                            <td>${order.customerId || '-'}</td>
+                            <td>$${order.totalAmount.toFixed(2)}</td>
+                            <td><span class="status-${order.status}">${order.status}</span></td>
+                            <td>${new Date(order.updatedAt).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading backup orders:', error);
+                document.getElementById('backupOrdersTableBody').innerHTML =
+                    '<tr><td colspan="6" class="empty-state">Error loading backup orders</td></tr>';
+            }
+        }
+
+        async function loadBackupCategories() {
+            try {
+                const response = await fetch('/api/backup/categories');
+                const categories = await response.json();
+
+                const tbody = document.getElementById('backupCategoriesTableBody');
+
+                if (categories.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No backup categories found.</td></tr>';
+                } else {
+                    tbody.innerHTML = categories.map(category => `
+                        <tr>
+                            <td>${category.id}</td>
+                            <td><strong>${category.name}</strong></td>
+                            <td>${category.description || '-'}</td>
+                            <td>${new Date(category.updatedAt).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading backup categories:', error);
+                document.getElementById('backupCategoriesTableBody').innerHTML =
+                    '<tr><td colspan="4" class="empty-state">Error loading backup categories</td></tr>';
+            }
+        }
+
+        // Update addChangeToLog to handle sync events
+        function addChangeToLog(change) {
+            changeCount++;
+            document.getElementById('totalChanges').textContent = changeCount;
+
+            const log = document.getElementById('changesLog');
+
+            // Remove empty state if present
+            const emptyState = log.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // Determine CSS class based on operation type
+            let cssClass = change.operation.toLowerCase();
+            if (change.operation === 'SYNC_COMPLETED') {
+                cssClass = 'sync-completed';
+            } else if (change.operation === 'SYNC_ERROR') {
+                cssClass = 'sync-error';
+            } else if (change.schema === 'backup') {
+                cssClass = 'backup';
+            }
+
+            const changeItem = document.createElement('div');
+            changeItem.className = `change-item ${cssClass}`;
+
+            const timestamp = new Date(change.timestamp).toLocaleString();
+
+            const operationText = change.operation === 'SYNC_COMPLETED' ? 'SYNCED' :
+                                change.operation === 'SYNC_ERROR' ? 'SYNC ERROR' :
+                                change.operation;
+
+            changeItem.innerHTML = `
+                <div class="change-meta">
+                    <strong>${operationText}</strong> on ${change.table}.${change.schema}
+                    at ${timestamp} (Transaction: ${change.transactionId})
+                </div>
+                ${change.after ? `<div class="change-data">${JSON.stringify(change.after, null, 2)}</div>` : ''}
+                ${change.before ? `<div style="margin-top: 0.5rem;"><strong>Before:</strong><div class="change-data">${JSON.stringify(change.before, null, 2)}</div></div>` : ''}
+            `;
+
+            log.insertBefore(changeItem, log.firstChild);
+
+            // Keep only last 50 changes
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+
+            // Refresh backup data if this was a sync operation
+            if (change.operation === 'SYNC_COMPLETED') {
+                loadBackupData();
+            }
+        }
+
+        // Start the application
+        initializeApp();
+    </script>
+</body>
+</html>

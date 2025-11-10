@@ -1,0 +1,6 @@
+@DebeziumDemoApp_HostAddress = http://localhost:5269
+
+GET {{DebeziumDemoApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

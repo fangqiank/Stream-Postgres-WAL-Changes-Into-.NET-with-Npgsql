@@ -273,7 +273,7 @@ public static class ReplicationEndpoints
             {
                 diagnostics["Error"] = ex.Message;
                 diagnostics["Timestamp"] = DateTime.UtcNow;
-                diagnostics["StackTrace"] = ex.StackTrace;
+                diagnostics["StackTrace"] = ex.StackTrace ?? string.Empty;
                 return Results.Ok(diagnostics);
             }
         })
