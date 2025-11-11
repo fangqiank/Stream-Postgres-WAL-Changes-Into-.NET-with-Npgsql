@@ -7,10 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddOpenApi();
 
-// Register core services
+// Register core services (only essential services for RabbitMQ + Debezium Server architecture)
 builder.Services.AddSingleton<IBackupPostgresService, BackupPostgresService>();
-builder.Services.AddSingleton<IKafkaService, KafkaService>();
-builder.Services.AddSingleton<ICDCMetricsService, CDMMetricsService>();
 
 // Add Universal Data Sync Service
 builder.Services.AddUniversalSyncFromConfiguration(builder.Configuration);

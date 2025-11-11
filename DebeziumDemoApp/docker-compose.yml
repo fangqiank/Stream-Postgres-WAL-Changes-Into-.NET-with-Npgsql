@@ -123,49 +123,35 @@ services:
       - debezium
     privileged: true
 
-  # Zookeeper (required by Kafka)
-  zookeeper:
-    image: debezium/zookeeper:2.6
-    container_name: zookeeper
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
     ports:
-      - "2181:2181"
-      - "2888:2888"
-      - "3888:3888"
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_VHOST: debezium
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - debezium
 
-  # Kafka
-  kafka:
-    image: debezium/kafka:2.6
-    container_name: kafka
+  # Debezium Server
+  debezium-server:
+    image: debezium/server:2.6
+    container_name: debezium-server
     ports:
-      - "9092:9092"
+      - "8080:8080" # Debezium Server API
     environment:
-      ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_HOST
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      DEBEZIUM_SINK_RABBITMQ_VIRTUAL_HOST: debezium
+    volumes:
+      - debezium_data:/data
+      - ./application.properties:/debezium/conf/application.properties
     depends_on:
-      - zookeeper
-    networks:
-      - debezium
-
-  # Debezium Connect
-  debezium-connect:
-    image: debezium/connect:2.6
-    container_name: debezium-connect
-    ports:
-      - "8083:8083"
-    environment:
-      BOOTSTRAP_SERVERS: kafka:9093
-      GROUP_ID: debezium-connect-group
-      CONFIG_STORAGE_TOPIC: debezium_connect_configs
-      OFFSET_STORAGE_TOPIC: debezium_connect_offsets
-      STATUS_STORAGE_TOPIC: debezium_connect_statuses
-    depends_on:
-      - kafka
+      - rabbitmq
       - postgres-primary
     networks:
       - debezium
@@ -179,6 +165,8 @@ volumes:
   sqlserver_data:
   sqlserver_analytics_data:
   sqlserver_archive_data:
+  rabbitmq_data:
+  debezium_data:
 
 networks:
   debezium:

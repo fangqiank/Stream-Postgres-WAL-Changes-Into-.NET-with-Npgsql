@@ -1,20 +1,20 @@
 # Debezium Universal Data Sync
 
-A .NET 9 minimal API application that demonstrates real-time cross-database synchronization using Debezium CDC (Change Data Capture) and Apache Kafka.
+A .NET 9 minimal API application that demonstrates real-time cross-database synchronization using Debezium CDC (Change Data Capture) and RabbitMQ.
 
 ## 🚀 Overview
 
 This application showcases a universal data synchronization architecture that can capture changes from PostgreSQL and synchronize them across multiple target databases in real-time:
 
 - **Source Database**: PostgreSQL with Debezium CDC
-- **Message Broker**: Apache Kafka for change event streaming
+- **Message Broker**: RabbitMQ for change event streaming
 - **Target Databases**: PostgreSQL, MongoDB, SQL Server
 - **Sync Engine**: Universal Data Sync Service with configurable pipelines
 
 ## 📋 Features
 
 ### ✅ Universal Data Synchronization
-- **Multi-source support**: Kafka, PostgreSQL CDC, SQL Server CDC, MongoDB Change Streams
+- **Multi-source support**: RabbitMQ, PostgreSQL CDC, SQL Server CDC, MongoDB Change Streams
 - **Multi-target support**: PostgreSQL, MongoDB, SQL Server
 - **Real-time processing**: Sub-second latency for change propagation
 - **Configurable pipelines**: Define custom sync rules with filtering and transformation
@@ -36,8 +36,8 @@ This application showcases a universal data synchronization architecture that ca
 
 ```mermaid
 graph TB
-    A[PostgreSQL Primary] --> B[Debezium CDC]
-    B --> C[Kafka Topics]
+    A[PostgreSQL Primary] --> B[Debezium Server]
+    B --> C[RabbitMQ Exchange]
     C --> D[Universal Data Sync Service]
     D --> E[PostgreSQL Backup]
     D --> F[PostgreSQL Reporting]
@@ -45,6 +45,7 @@ graph TB
     D --> H[SQL Server Warehouse]
 
     I[Docker Containers] --> A
+    I --> B
     I --> C
     I --> E
     I --> F
@@ -90,17 +91,28 @@ This starts:
 - PostgreSQL Reporting (port 5434)
 - MongoDB (port 27017)
 - SQL Server (port 1433)
-- Kafka (port 9092)
-- Zookeeper (port 2181)
-- Debezium Connect (port 8083)
+- RabbitMQ (port 5672, Management UI port 15672)
+- Debezium Server (port 8080)
 
-### 3. Configure Debezium Connector
+### 3. Verify Debezium Server
+Debezium Server is automatically configured and starts listening for PostgreSQL changes. No manual connector configuration is needed.
+
+You can verify the Debezium Server status:
 ```bash
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" \
-localhost:8083/connectors/ -d @debezium-connector-config.json
+curl http://localhost:8080/q/health
 ```
 
-### 4. Run Application
+And check RabbitMQ Management UI:
+- URL: http://localhost:15672
+- Username: admin
+- Password: admin
+
+### 4. Detailed Configuration Guide
+For comprehensive setup instructions, configuration details, and troubleshooting guides, please refer to:
+- **[Debezium Server Configuration Guide](debezium-server-documentation.md)** - 完整的Docker和Debezium Server配置详解
+- **[Deployment Verification Guide](deployment-verification-guide.md)** - 部署验证和端到端测试指南
+
+### 5. Run Application
 ```bash
 dotnet run
 ```
@@ -135,10 +147,16 @@ Configure data synchronization pipelines in `appsettings.json`:
 ```json
 {
   "DataSources": {
-    "PrimaryKafka": {
-      "Type": "Kafka",
-      "BootstrapServers": "localhost:9092",
-      "Topics": ["debezium.public.products"]
+    "PrimaryRabbitMQ": {
+      "Type": "RabbitMQ",
+      "HostName": "localhost",
+      "Port": "5672",
+      "UserName": "admin",
+      "Password": "admin",
+      "VirtualHost": "debezium",
+      "ExchangeName": "debezium.events",
+      "ExchangeType": "topic",
+      "RoutingKeys": ["postgres-primary.public.products", "postgres-primary.public.orders", "postgres-primary.public.categories"]
     }
   }
 }
@@ -193,21 +211,21 @@ The application provides comprehensive monitoring through:
 | postgres-reporting | 5434 | Reporting PostgreSQL database |
 | mongodb | 27017 | MongoDB analytics database |
 | sqlserver | 1433 | SQL Server warehouse |
-| kafka | 9092 | Apache Kafka message broker |
-| zookeeper | 2181 | Kafka coordination service |
-| debezium-connect | 8083 | Debezium connector service |
+| rabbitmq | 5672 | RabbitMQ message broker |
+| rabbitmq-management | 15672 | RabbitMQ Management UI |
+| debezium-server | 8080 | Debezium Server service |
 
 ## 🔒 Security Considerations
 
 - Database credentials should be stored in secure configuration
 - Enable SSL/TLS for production database connections
-- Configure Kafka authentication for production use
+- Configure RabbitMQ authentication and SSL/TLS for production use
 - Use Docker secrets or environment variables for sensitive data
 
 ## 📚 Key Concepts
 
 ### Change Data Capture (CDC)
-Debezium captures row-level changes in the source database transaction log and streams them as events to Kafka.
+Debezium Server captures row-level changes in the source database transaction log and streams them as events to RabbitMQ.
 
 ### Universal Data Sync
 The service abstracts data source and target differences, providing a consistent interface for cross-database synchronization.

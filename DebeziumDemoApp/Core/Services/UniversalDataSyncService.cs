@@ -298,7 +298,7 @@ public class UniversalDataSyncService : BackgroundService, IUniversalDataSyncSer
 
             IDataSource? dataSource = type switch
             {
-                "Kafka" => ActivatorUtilities.CreateInstance<KafkaDataSource>(_serviceProvider, name),
+                "RabbitMQ" => ActivatorUtilities.CreateInstance<RabbitMQDataSource>(_serviceProvider, name),
                 "PostgreSQL" => ActivatorUtilities.CreateInstance<PostgreSQLDataSource>(_serviceProvider, name),
                 "SQLServer" => ActivatorUtilities.CreateInstance<SQLServerDataSource>(_serviceProvider, name),
                 "MongoDB" => ActivatorUtilities.CreateInstance<MongoDBDataSource>(_serviceProvider, name),

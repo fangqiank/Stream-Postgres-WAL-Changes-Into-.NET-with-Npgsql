@@ -54,8 +54,8 @@ public static class ServiceCollectionExtensions
 
             return dataSourceType switch
             {
-                DataSourceType.Kafka => new KafkaDataSource(name, configuration,
-                    provider.GetRequiredService<ILogger<KafkaDataSource>>()),
+                DataSourceType.RabbitMQ => new RabbitMQDataSource(name, configuration,
+                    provider.GetRequiredService<ILogger<RabbitMQDataSource>>()),
                 DataSourceType.PostgreSQL => new PostgreSQLDataSource(name, configuration,
                     provider.GetRequiredService<ILogger<PostgreSQLDataSource>>()),
                 DataSourceType.SQLServer => new SQLServerDataSource(name, configuration,
@@ -229,8 +229,8 @@ public class DataSourceFactory
     {
         return type switch
         {
-            DataSourceType.Kafka => new KafkaDataSource(name, _configuration,
-                _serviceProvider.GetRequiredService<ILogger<KafkaDataSource>>()),
+            DataSourceType.RabbitMQ => new RabbitMQDataSource(name, _configuration,
+                _serviceProvider.GetRequiredService<ILogger<RabbitMQDataSource>>()),
             DataSourceType.PostgreSQL => new PostgreSQLDataSource(name, _configuration,
                 _serviceProvider.GetRequiredService<ILogger<PostgreSQLDataSource>>()),
             DataSourceType.SQLServer => new SQLServerDataSource(name, _configuration,

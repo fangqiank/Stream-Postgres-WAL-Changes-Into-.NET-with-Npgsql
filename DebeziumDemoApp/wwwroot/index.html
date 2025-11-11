@@ -841,6 +841,12 @@
             border: 1px solid rgba(226, 232, 240, 0.6);
         }
 
+        .type-badge.rabbitmq {
+            background: rgba(255, 152, 0, 0.12);
+            color: #ff9800;
+            border-color: rgba(255, 152, 0, 0.3);
+        }
+
         .type-badge.kafka {
             background: rgba(59, 130, 246, 0.12);
             color: #3b82f6;
@@ -913,7 +919,7 @@
             <div class="status-bar">
                 <div class="status-indicator">
                     <div class="status-dot connected"></div>
-                    <span>Kafka Connected</span>
+                    <span>RabbitMQ Connected</span>
                 </div>
                 <div class="status-indicator">
                     <div class="status-dot connected"></div>
@@ -1031,9 +1037,9 @@
                 <div class="pipeline-flow">
                     <div class="pipeline-node">PostgreSQL</div>
                     <div class="pipeline-arrow">→</div>
-                    <div class="pipeline-node">Debezium</div>
+                    <div class="pipeline-node">Debezium Server</div>
                     <div class="pipeline-arrow">→</div>
-                    <div class="pipeline-node">Kafka</div>
+                    <div class="pipeline-node">RabbitMQ</div>
                     <div class="pipeline-arrow">→</div>
                     <div class="pipeline-node">Universal Sync</div>
                     <div class="pipeline-arrow">→</div>
@@ -1128,9 +1134,9 @@
                 console.error('Error loading pipelines:', error);
                 // Fallback to demo data if API fails
                 pipelines = [
-                    { name: 'ProductsToBackup', source: 'PrimaryKafka', target: 'BackupPostgres', status: 'running', enabled: true, records_synced: 1247 },
-                    { name: 'OrdersToAnalytics', source: 'PrimaryKafka', target: 'AnalyticsMongo', status: 'running', enabled: true, records_synced: 892 },
-                    { name: 'CategoriesToReporting', source: 'PrimaryKafka', target: 'ReportingPostgres', status: 'running', enabled: true, records_synced: 156 },
+                    { name: 'ProductsToBackup', source: 'PrimaryRabbitMQ', target: 'BackupPostgres', status: 'running', enabled: true, records_synced: 1247 },
+                    { name: 'OrdersToAnalytics', source: 'PrimaryRabbitMQ', target: 'AnalyticsMongo', status: 'running', enabled: true, records_synced: 892 },
+                    { name: 'CategoriesToReporting', source: 'PrimaryRabbitMQ', target: 'ReportingPostgres', status: 'running', enabled: true, records_synced: 156 },
                     { name: 'PostgresToMongo', source: 'PostgresCDC', target: 'AnalyticsMongo', status: 'paused', enabled: false, records_synced: 552 }
                 ];
                 renderPipelines();
@@ -1150,7 +1156,7 @@
                 console.error('Error loading data sources:', error);
                 // Fallback to demo data
                 dataSources = [
-                    { name: 'PrimaryKafka', type: 'Kafka', is_connected: true, status: 'Connected' },
+                    { name: 'PrimaryRabbitMQ', type: 'RabbitMQ', is_connected: true, status: 'Connected' },
                     { name: 'PostgresCDC', type: 'PostgreSQL', is_connected: true, status: 'Connected' },
                     { name: 'SQLServerCDC', type: 'SQL Server', is_connected: true, status: 'Connected' },
                     { name: 'MongoDBCDC', type: 'MongoDB', is_connected: false, status: 'Disconnected' }
@@ -1520,7 +1526,7 @@
 
         // Add some initial demo events
         addEventLogEntry('success', 'Universal Data Sync Dashboard initialized');
-        addEventLogEntry('info', 'Connected to Kafka cluster');
+        addEventLogEntry('info', 'Connected to RabbitMQ message broker');
         addEventLogEntry('info', 'PostgreSQL CDC listener started');
         addEventLogEntry('info', 'MongoDB sync target ready');
         addEventLogEntry('success', 'All sync pipelines initialized successfully');
